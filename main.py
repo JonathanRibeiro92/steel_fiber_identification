@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import os
 import imageio.v2 as imageio
+from collections import OrderedDict
 
 from pyimagesearch.centroidtracker import CentroidTracker
 
@@ -19,16 +20,18 @@ def rastrear_ponto_em_imagens(diretorio_imagens):
         return
 
     # initialize our centroid tracker and frame dimensions
-    ct = CentroidTracker()
+    ct = CentroidTracker(maxDisappeared=50)
     (H, W) = (None, None)
 
     # Define a posição inicial das janelas
     x_pos_frame = 0
     x_pos_roi = 450
+    frames_history = OrderedDict()
 
-    rects = []
+
     target_size = (600, 600)
-    for imagem in imagens[1:]:
+    frameID = 0
+    for imagem in imagens:
         # Converte a imagem para escala de cinza
         frame_gray = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
         frame_gray = cv2.resize(frame_gray, target_size)
@@ -42,8 +45,7 @@ def rastrear_ponto_em_imagens(diretorio_imagens):
         _, mask = cv2.threshold(mask, 254, 255, cv2.THRESH_BINARY)
 
         contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-        #Colocar Id nas fibras candidatas e guardar estrutura (histórico) com posição (X,Y) e Frame (imagem)
+        rects = []
 
         for cnt in contours:
             x, y, w, h = cv2.boundingRect(cnt)
@@ -57,6 +59,10 @@ def rastrear_ponto_em_imagens(diretorio_imagens):
         objects = ct.update(rects)
 
         frame_display = cv2.resize(imagem.copy(), target_size)
+
+        # Colocar Id nas fibras candidatas e guardar estrutura (histórico) com posição (X,Y) e Frame (imagem)
+        frames_history[frameID] = objects.items()
+        frameID += 1
 
         # loop over the tracked objects
         for (objectID, centroid) in objects.items():
@@ -84,9 +90,13 @@ def rastrear_ponto_em_imagens(diretorio_imagens):
             break
 
     cv2.destroyAllWindows()
+    return frames_history
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    diretorio_imagens = 'D:/mestrado/Material TCC Douglas/Imagens/CP09_6/img/'
-    rastrear_ponto_em_imagens(diretorio_imagens)
-
+    diretorio_imagens = 'D:/mestrado/Material TCC Douglas/Imagens/recortadas/CP06_6/img/'
+    dictHistory = rastrear_ponto_em_imagens(diretorio_imagens)
+    print("qtd Frames {}".format(len(dictHistory.keys())))
+    for (frameId, centroids) in dictHistory.items():
+        print("Frame {}".format(frameId))
+        print("qtd Centroids {}".format(len(centroids)))
