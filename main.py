@@ -3,6 +3,8 @@ import numpy as np
 import os
 import imageio.v2 as imageio
 from collections import OrderedDict
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 from pyimagesearch.centroidtracker import CentroidTracker
 
@@ -60,6 +62,8 @@ def rastrear_ponto_em_imagens(diretorio_imagens):
 
         frame_display = cv2.resize(imagem.copy(), target_size)
 
+        frame_display2 = cv2.resize(imagem.copy(), target_size)
+
         # Colocar Id nas fibras candidatas e guardar estrutura (histórico) com posição (X,Y) e Frame (imagem)
         frames_history[frameID] = objects.items()
         frameID += 1
@@ -73,15 +77,23 @@ def rastrear_ponto_em_imagens(diretorio_imagens):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
             cv2.circle(frame_display, (centroid[0], centroid[1]), 4, (0, 255, 0), -1)
 
-        # Exibe o resultado
-        cv2.imshow('Frame', frame_display)
-        cv2.moveWindow('Frame', x_pos_frame, 10)
+        listaTeste = list(objects.items())
+        if len(listaTeste) > 100:
+            (objectIDtest, centroid2) = listaTeste[100]
+            text = "ID {}".format(objectIDtest)
+            cv2.putText(mask, text, (centroid2[0] - 10, centroid2[1] - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+            cv2.circle(mask, (centroid2[0], centroid2[1]), 4, (0, 255, 0), -1)
 
-        cv2.imshow('ROI', roi)
+        # Exibe o resultado
+        # cv2.imshow('Frame', frame_display)
+        # cv2.moveWindow('Frame', x_pos_frame, 10)
+
+        cv2.imshow('ROI', mask)
         cv2.moveWindow('ROI', x_pos_frame + W, 10)
 
-        # cv2.imshow('mask', mask)
-        # cv2.moveWindow('mask', x_pos_roi + W, 10)
+        # cv2.imshow('frame_display2', frame_display2)
+        # cv2.moveWindow('frame_display2', x_pos_frame + W, 10)
 
 
 
@@ -94,9 +106,56 @@ def rastrear_ponto_em_imagens(diretorio_imagens):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
+
     diretorio_imagens = 'D:/mestrado/Material TCC Douglas/Imagens/recortadas/CP06_6/img/'
     dictHistory = rastrear_ponto_em_imagens(diretorio_imagens)
+    dictIdFrames = OrderedDict()
+
+
+    points = []
+    for (frameId, centroids) in dictHistory.items():
+        for value in centroids:
+            id = value[0]
+            z = frameId
+            pos = value[1]
+            x, y = pos
+            points.append([x, y, z])
+
+
+    pointsNpArray = np.array(points)
+
+    # Criação da figura e do subplot 3D
+    fig = plt.figure(figsize=(20, 15))
+    # ax = fig.add_subplot(111, projection='3d')
+
+    qtdSlices = np.array(range(len(dictHistory.keys())))
+
+    xx, zz = np.meshgrid(range(pointsNpArray[:, 0].max() + 20), range(pointsNpArray[:, 1].max() + 20))
+    ax = plt.subplot(projection='3d')
+    # ax.plot_surface(xx, yy, zz)
+    # Adiciona planos ao longo do eixo Y cortando os valores de slice
+    for value in np.unique(pointsNpArray[:, 2]):
+        yy = value
+        ax.plot_surface(xx, yy, zz, rstride=5, cstride=5,
+                        color='darkblue', linewidth=0, alpha=0.2, antialiased=True, shade=True)
+
+    ax.scatter3D(pointsNpArray[:, 0], pointsNpArray[:, 2], pointsNpArray[:, 1], c='r', marker='.')
+    ax.set_xlabel('X')
+    ax.set_ylabel('Slice')
+    ax.set_zlabel('Y')
+    plt.show()
+
     print("qtd Frames {}".format(len(dictHistory.keys())))
     for (frameId, centroids) in dictHistory.items():
         print("Frame {}".format(frameId))
         print("qtd Centroids {}".format(len(centroids)))
+        for i in range(len(centroids)):
+            dictIdFrames[i] = []
+        for value in centroids:
+            id = value[0]
+            pos = value[1]
+            dictIdFrames[id].append(frameId)
+
+    for (id, frames) in dictIdFrames.items():
+        print("id {}".format(id))
+        print("Frames {}".format(frames))
