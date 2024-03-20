@@ -9,69 +9,77 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from stl import mesh
 import glob
+from scipy.interpolate import interp1d
+from skimage import measure
 
 from pyimagesearch.centroidtracker import CentroidTracker
 
 
-# Função para gerar o mesh stl 3D
-def generateStl(pointsNpArray):
-    # Tamanho do paralelepípedo
-    xx = pointsNpArray[:, 0].max() + 20
-    yy = pointsNpArray[:, 2].max()
-    zz = pointsNpArray[:, 1].max() + 20
+def generate_mesh(points_array):
+    # Crie uma instância vazia de um objeto STL
+    vertices = []
+    faces = []
 
-    paralelepipedo_vertices = np.array([
-        [0, 0, 0],
-        [0, yy, 0],
-        [xx, yy, 0],
-        [xx, 0, 0],
-        [0, 0, zz],
-        [0, yy, zz],
-        [xx, yy, zz],
-        [xx, 0, zz]
-    ])
+    # Adicione os vértices e as faces ao objeto STL
+    for i in range(len(points_array)):
+        # Adicione cada ponto como um vértice
+        vertices.append(points_array[i])
 
-    print("Dimensões de paralelepipedo_vertices:", paralelepipedo_vertices.shape)
+        # Se não for o último ponto, adicione uma face entre este ponto e o próximo
+        if i < len(points_array) - 1:
+            faces.append([i, i + 1, i])
 
-    paralelepipedo_faces = np.array([
-        [0, 1, 2],
-        [0, 2, 3],
-        [0, 4, 5],
-        [0, 5, 1],
-        [1, 5, 6],
-        [1, 6, 2],
-        [2, 6, 7],
-        [2, 7, 3],
-        [3, 7, 4],
-        [3, 4, 0],
-        [4, 7, 6],
-        [4, 6, 5]
-    ])
-
-    # Combine os vértices e faces das fibras com as do paralelepípedo
-    all_vertices = np.vstack([paralelepipedo_vertices, pointsNpArray])
-    all_faces = np.vstack([
-        np.arange(len(paralelepipedo_vertices)),  # Índices dos vértices do paralelepípedo
-        paralelepipedo_faces,  # Índices das faces do paralelepípedo
-        np.arange(len(paralelepipedo_vertices), len(paralelepipedo_vertices) + len(pointsNpArray))  # Índices das fibras
-    ])
-
-    print("Dimensões de all_vertices:", all_vertices.shape)
-    print("Dimensões de all_faces:", all_faces.shape)
+    # Converta as listas de vértices e faces em arrays numpy
+    vertices = np.array(vertices)
+    faces = np.array(faces)
 
     # Crie o objeto mesh
-    combined_mesh = mesh.Mesh(np.zeros(len(all_faces), dtype=mesh.Mesh.dtype))
-    for i, face in enumerate(all_faces):
+    mesh_object = mesh.Mesh(np.zeros(len(faces), dtype=mesh.Mesh.dtype))
+    for i, f in enumerate(faces):
         for j in range(3):
-            combined_mesh.vectors[i][j] = all_vertices[face[j]]
+            mesh_object.vectors[i][j] = vertices[f[j], :]
 
-    combined_mesh.save('fibers_stl_example_01.stl')
+    return mesh_object
+
+def generate_cube_mesh(data):
+    # Create vertices and faces from the 3D image
+    vertices, faces, _, _ = measure.marching_cubes(data, 0)
+    # Convert to mesh and save
+    data_mesh = mesh.Mesh(np.zeros(faces.shape[0], dtype=mesh.Mesh.dtype))
+    for i, f in enumerate(faces):
+        for j in range(3):
+            data_mesh.vectors[i][j] = vertices[f[j], :]
+
+    return data_mesh
+
+
+def create_volume_from_points(points):
+    # Determinar os limites ao longo dos eixos x, y e z
+    min_x = min(points[:, 0])
+    max_x = max(points[:, 0])
+    min_y = min(points[:, 1])
+    max_y = max(points[:, 1])
+    min_z = min(points[:, 2])
+    max_z = max(points[:, 2])
+
+    # Determinar as dimensões do volume
+    volume_shape = (max_x - min_x + 1, max_y - min_y + 1, max_z - min_z + 1)
+
+    # Inicializar o volume com zeros
+    volume = np.zeros(volume_shape, dtype=int)
+
+    # Preencher o volume com os pontos
+    for point in points:
+        x, y, z = point
+        volume[x - min_x, y - min_y, z - min_z] = 1
+
+    return volume
+
 
 
 # Função principal de rastreamento
 
 def rastrear_ponto_em_imagens(imagens):
-
     # função do openCV que retira o fundo das imagens
     object_detector = cv2.createBackgroundSubtractorMOG2()
 
@@ -245,9 +253,6 @@ if __name__ == '__main__':
     # Criação da figura e do subplot 3D
     plotCube(pointsNpArray)
 
-    # Geração do STL
-    # generateStl(pointsNpArray)
-
     print("qtd Frames {}".format(len(dictHistory.keys())))
     for (frameId, centroids) in dictHistory.items():
         for value in centroids:
@@ -274,4 +279,18 @@ if __name__ == '__main__':
             fiberExample.append([x, y, z])
     fiberExample = np.array(fiberExample)
 
+    print("centroidId {}".format(centroidId))
+
     plotCube(fiberExample)
+
+    mesh_from_points = generate_mesh(pointsNpArray)
+
+    # Salve o mesh em um arquivo STL
+    mesh_from_points.save('fibers_stl_example_01.stl')
+
+    print("Dimensões de pointsNpArray:", pointsNpArray.shape)
+
+    volume = create_volume_from_points(pointsNpArray)
+
+    cube_mesh = generate_cube_mesh(volume)
+    cube_mesh.save('mesh_cube.stl')
