@@ -41,7 +41,7 @@ def generate_cube_mesh(data):
     return data_mesh
 
 
-def create_volume_from_points(points):
+def create_volume_from_points(points, slice_thickness=0.25):
     # Determinar os limites ao longo dos eixos x, y e z
     min_x = min(points[:, 0])
     max_x = max(points[:, 0])
@@ -50,8 +50,12 @@ def create_volume_from_points(points):
     min_z = min(points[:, 2])
     max_z = max(points[:, 2])
 
-    # Determinar as dimensões do volume
-    volume_shape = (max_x - min_x + 1, max_y - min_y + 1, max_z - min_z + 1)
+    # Determinar as dimensões do volume com base na espessura da fatia
+    volume_shape = (
+        int((max_x - min_x + 1) / slice_thickness),
+        int((max_y - min_y + 1) / slice_thickness),
+        int((max_z - min_z + 1) / slice_thickness)
+    )
 
     # Inicializar o volume com zeros
     volume = np.zeros(volume_shape, dtype=int)
@@ -59,7 +63,10 @@ def create_volume_from_points(points):
     # Preencher o volume com os pontos
     for point in points:
         x, y, z = point
-        volume[x - min_x, y - min_y, z - min_z] = 1
+        x_idx = int((x - min_x) / slice_thickness)
+        y_idx = int((y - min_y) / slice_thickness)
+        z_idx = int((z - min_z) / slice_thickness)
+        volume[x_idx, y_idx, z_idx] = 1
 
     return volume
 

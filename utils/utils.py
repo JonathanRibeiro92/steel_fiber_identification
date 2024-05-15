@@ -6,6 +6,7 @@ import cv2
 import imageio
 import numpy as np
 from matplotlib import pyplot as plt
+from tqdm import tqdm
 
 from Mesh3D.Mesh3D import create_volume_from_points, generate_mesh, generate_cube_mesh
 
@@ -28,7 +29,7 @@ def showFrames(W, imagem, mask, centroidsDict, target_size, x_pos_frame):
     cv2.moveWindow('ROI', x_pos_frame + W, 10)
 
 
-def plotCube(pointsNpArray, centroidId=-1, nomeAmostra = None, show=True):
+def plotCube(pointsNpArray, centroidId=-1, nomeAmostra = None, show=True, params=''):
     fig = plt.figure(figsize=(20, 15))
     ax = plt.subplot(projection='3d')
 
@@ -45,14 +46,14 @@ def plotCube(pointsNpArray, centroidId=-1, nomeAmostra = None, show=True):
     ax.set_xlabel('X')
     ax.set_ylabel('Slice')
     ax.set_zlabel('Y')
-    nome_caminho = 'results/{}'.format(nomeAmostra)
+    nome_caminho = 'results_{}/{}'.format(params, nomeAmostra)
     if centroidId!=-1 or nomeAmostra is not None:
         if not os.path.exists(nome_caminho):
             os.makedirs(nome_caminho)
         if centroidId != -1:
-            nome_caminho = nome_caminho + '/fiber_example{}.png'.format(centroidId)
+            nome_caminho = nome_caminho + '/fiber_centroid_{}.png'.format(centroidId)
         else:
-            nome_caminho = nome_caminho + '/fiber_total{}.png'
+            nome_caminho = nome_caminho + '/fiber_total.png'
         plt.savefig(nome_caminho)
     if show:
         plt.show()
@@ -83,13 +84,13 @@ def find_blue_points(imagePath):
     return blue_points
 
 
-def cutImages(diretorio_amostras):
+def cutImages(diretorio_amostras, diretorioReferencia):
     diretorio_imagens = diretorio_amostras + '/img/'
 
     padrao_marker = 'Markers_Counter Window*'
 
     # Usa glob para encontrar arquivos que correspondam ao padrão
-    arquivos_encontrados = glob.glob(os.path.join(diretorio_amostras, padrao_marker))
+    arquivos_encontrados = glob.glob(os.path.join(diretorioReferencia, padrao_marker))
     mask_image_path = arquivos_encontrados[0]
     blue_points = find_blue_points(mask_image_path)
 
@@ -100,20 +101,20 @@ def cutImages(diretorio_amostras):
 
     cropped_images = []
 
-    images = [imageio.imread(os.path.join(diretorio_imagens, img)) for img in os.listdir(diretorio_imagens)]
+    images = [imageio.imread(os.path.join(diretorio_amostras, img)) for img in os.listdir(diretorio_amostras) if img.endswith('png') or img.endswith('jpg')]
 
     for image in images:
         # Crop the region of the image delimited by the blue points
         cropped_image = image[min_y:max_y, min_x:max_x]
-        image_with_rectangle = image.copy()
-        cv2.rectangle(image_with_rectangle, (min_x, min_y), (max_x, max_y), (0, 255, 0), 2)
-        cv2.imshow(f'Image with Rectangle', image_with_rectangle)
+        # image_with_rectangle = image.copy()
+        # cv2.rectangle(image_with_rectangle, (min_x, min_y), (max_x, max_y), (0, 255, 0), 2)
+        # cv2.imshow(f'Image with Rectangle', image_with_rectangle)
         cropped_images.append(cropped_image)
     return cropped_images
 
-def generateVolumes(pointsNpArray, amostra, nome_amostra):
+def generateVolumes(pointsNpArray, amostra, nome_amostra, params=''):
     mesh_from_points = generate_mesh(pointsNpArray)
-    nome_caminho = 'results/{}'.format(amostra)
+    nome_caminho = 'results_{}/{}'.format(params,amostra)
     # Salve o mesh em um arquivo STL
     mesh_from_points.save('{}/fibers_{}.stl'.format(nome_caminho, nome_amostra))
     volume = create_volume_from_points(pointsNpArray)
@@ -145,8 +146,20 @@ def generate_pointsNpArray(dictHistory):
             points.append([x, y, z])
     return np.array(points)
 
-def plotFibers(dictIdFrames, dictHistory, nome_amostra):
-    for centroidId in dictIdFrames.keys():
+def generate_pointsNpArrayFromBlobs(dictHistory):
+    points = []
+    for (frameId, centroids) in dictHistory.items():
+        for value in centroids:
+            x = value[0]
+            z = frameId
+            y = value[1]
+            points.append([x, y, z])
+    return np.array(points)
+
+def plotFibers(dictIdFrames, dictHistory, nome_amostra, params=''):
+    pbar = tqdm(dictIdFrames.keys())
+    for centroidId in pbar:
+        pbar.set_description("criando o plot do centroid %s" % centroidId)
         fiberExample = []
         for frameId in dictIdFrames[centroidId]:
             for value in dictHistory[frameId]:
@@ -158,4 +171,4 @@ def plotFibers(dictIdFrames, dictHistory, nome_amostra):
                 fiberExample.append([x, y, z])
         fiberExample = np.array(fiberExample)
 
-        plotCube(fiberExample, centroidId=centroidId, nomeAmostra=nome_amostra, show=False)
+        plotCube(fiberExample, centroidId=centroidId, nomeAmostra=nome_amostra, show=False, params=params)

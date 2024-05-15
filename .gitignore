@@ -3,7 +3,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-results/
+Image2LMDB/img/*
+results*
 
 vcs.xml
 *.stl

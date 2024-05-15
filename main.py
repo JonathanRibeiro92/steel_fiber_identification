@@ -5,11 +5,12 @@ from collections import OrderedDict
 from pyimagesearch.centroidtracker import CentroidTracker
 from utils.utils import showFrames, plotCube, cutImages, generate_pointsNpArray, generateDictIdFrames, plotFibers, \
     generateVolumes
+from tqdm import tqdm
 
 
 # Função principal de rastreamento
 
-def rastrear_ponto_em_imagens(imagens):
+def rastrear_ponto_em_imagens(imagens, showVideo=False, maxDisappeared=20, minDistance=100):
     # função do openCV que retira o fundo das imagens
     object_detector = cv2.createBackgroundSubtractorMOG2()
 
@@ -18,7 +19,7 @@ def rastrear_ponto_em_imagens(imagens):
         return
 
     # initialize our centroid tracker and frame dimensions
-    ct = CentroidTracker(maxDisappeared=4, minDistance=40)
+    ct = CentroidTracker(maxDisappeared=maxDisappeared, minDistance=minDistance)
     (H, W) = (None, None)
 
     # Define a posição inicial das janelas
@@ -58,8 +59,8 @@ def rastrear_ponto_em_imagens(imagens):
         # Colocar Id nas fibras candidatas e guardar estrutura (histórico) com posição (X,Y) e Frame (imagem)
         frames_history[frameID] = objects.copy().items()
         frameID += 1
-
-        showFrames(W, imagem, mask, objects.items(), target_size, x_pos_frame)
+        if showVideo:
+            showFrames(W, imagem, mask, objects.items(), target_size, x_pos_frame)
 
         # Encerra o loop ao pressionar a tecla 'q'
         if cv2.waitKey(100) & 0xFF == ord('q'):
@@ -73,22 +74,34 @@ def rastrear_ponto_em_imagens(imagens):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
 
+    maxDisappeared = 20
+    minDistance = 60
+
+    params = 'maxDissapeared{}_minDistance{}'.format(maxDisappeared,minDistance)
+
     diretorioImagens = 'D:/mestrado/Material TCC Douglas/Imagens/'
-    for amostra in os.listdir(diretorioImagens):
-        print('Processando a amostra {}'.format(amostra))
-        diretorio_amostras = '{}{}'.format(diretorioImagens, amostra)
+    diretorioNovo = 'D:/mestrado/Material TCC Douglas/Amostras/Cortes_6x6/'
+    pbar = tqdm(os.listdir(diretorioNovo))
+    for amostra in pbar:
+        pbar.set_description("Processando a amostra %s" % amostra)
+        diretorio_amostras = '{}{}'.format(diretorioNovo, amostra)
+        diretorioReferencia = diretorioImagens + amostra +'/'
         nome_amostra = diretorio_amostras.split('/')[-1]
-        cropped_images = cutImages(diretorio_amostras)
-        dictHistory = rastrear_ponto_em_imagens(cropped_images)
+        cropped_images = cutImages(diretorio_amostras, diretorioReferencia)
+
+        cropped_images = cropped_images[684:725]
+        dictHistory = rastrear_ponto_em_imagens(cropped_images, maxDisappeared=maxDisappeared, minDistance=minDistance)
 
         pointsNpArray = generate_pointsNpArray(dictHistory)
         # Criação da figura e do subplot 3D
-        plotCube(pointsNpArray, nomeAmostra=amostra, show=False)
+        plotCube(pointsNpArray, nomeAmostra=amostra, show=False, params=params)
 
         dictIdFrames = generateDictIdFrames(dictHistory)
+        qtdCentroids = len(dictIdFrames.keys())
+        print('{} centroids na amostra {}'.format(qtdCentroids, amostra))
+        plotFibers(dictIdFrames, dictHistory, nome_amostra, params=params)
 
-        plotFibers(dictIdFrames, dictHistory, nome_amostra)
-
-        generateVolumes(pointsNpArray, amostra, nome_amostra)
+        generateVolumes(pointsNpArray, amostra, nome_amostra, params=params)
         print('Encerrado processamento da amostra {}'.format(amostra))
+        break
     print('Encerrado processamento!!')
